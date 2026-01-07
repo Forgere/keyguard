@@ -7,6 +7,7 @@ import {
 import { z } from "zod";
 import { Vault } from "./vault.js";
 import { PolicyEngine } from "./policy.js";
+import { ProxyHandler } from "./proxy.js";
 
 const vault = new Vault();
 
@@ -56,6 +57,33 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         name: "list_services",
         description: "List all services currently managed by KeyGuard",
         inputSchema: { type: "object", properties: {} }
+      },
+      {
+        name: "get_proxy_session",
+        description: "Get a temporary session token for proxying requests to a service",
+        inputSchema: {
+          type: "object",
+          properties: {
+            service: { type: "string", description: "Service provider name" },
+            required_permissions: { type: "array", items: { type: "string" }, description: "Permissions needed" },
+            ttl_ms: { type: "number", description: "Time to live in milliseconds (default 1 hour)" }
+          },
+          required: ["service", "required_permissions"]
+        }
+      },
+      {
+        name: "proxy_request",
+        description: "Make a proxied request to a service using a session token",
+        inputSchema: {
+          type: "object",
+          properties: {
+            session_token: { type: "string", description: "The temporary session token" },
+            method: { type: "string", description: "HTTP method (GET, POST, etc.)" },
+            path: { type: "string", description: "API path (e.g., /chat/completions)" },
+            data: { type: "object", description: "Request body data" }
+          },
+          required: ["session_token", "method", "path"]
+        }
       }
     ],
   };
@@ -108,6 +136,53 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const keys = vault.listKeys();
       const services = Array.from(new Set(keys.map(k => k.service)));
       return { content: [{ type: "text", text: `Managed services: ${services.join(', ') || 'None'}` }] };
+    }
+
+    if (name === "get_proxy_session") {
+      const { service, required_permissions, ttl_ms } = z.object({
+        service: z.string(),
+        required_permissions: z.array(z.string()),
+        ttl_ms: z.number().optional()
+      }).parse(args);
+
+      if (!PolicyEngine.canAccess(service, required_permissions, { projectPath: process.cwd() })) {
+        return { content: [{ type: "text", text: "Access denied by policy." }], isError: true };
+      }
+
+      const bestKey = vault.findBestKey(service, required_permissions);
+      if (!bestKey) {
+        return { content: [{ type: "text", text: "No suitable key found." }], isError: true };
+      }
+
+      const token = vault.createSession(bestKey, required_permissions, ttl_ms);
+      return { content: [{ type: "text", text: `Session Token: ${token}\nExpires in: ${ttl_ms || 3600000}ms` }] };
+    }
+
+    if (name === "proxy_request") {
+      const { session_token, method, path, data } = z.object({
+        session_token: z.string(),
+        method: z.string(),
+        path: z.string(),
+        data: z.any().optional()
+      }).parse(args);
+
+      const session = vault.getSession(session_token);
+      if (!session) {
+        return { content: [{ type: "text", text: "Invalid or expired session token." }], isError: true };
+      }
+
+      const keyEntry = vault.getKey(session.keyId);
+      if (!keyEntry) {
+        return { content: [{ type: "text", text: "Associated key not found." }], isError: true };
+      }
+
+      const result = await ProxyHandler.forward(session.service, keyEntry.key, {
+        method,
+        url: path,
+        data
+      });
+
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     }
 
     throw new Error(`Unknown tool: ${name}`);

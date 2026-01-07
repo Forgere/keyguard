@@ -9,9 +9,18 @@ export interface KeyEntry {
   description?: string;
 }
 
+export interface SessionEntry {
+  token: string;
+  keyId: string;
+  service: string;
+  permissions: string[];
+  expiresAt: number;
+}
+
 export class Vault {
   private storagePath: string;
   private keys: KeyEntry[] = [];
+  private sessions: Map<string, SessionEntry> = new Map();
 
   constructor(storagePath?: string) {
     this.storagePath = storagePath || process.env.KEYGUARD_STORAGE_PATH || path.join(process.cwd(), 'storage.json');
@@ -76,5 +85,28 @@ export class Vault {
     }
     
     return bestKey;
+  }
+
+  createSession(key: KeyEntry, permissions: string[], ttlMs: number = 3600000): string {
+    const token = `kg_sess_${Math.random().toString(36).substring(2)}${Math.random().toString(36).substring(2)}`;
+    const session: SessionEntry = {
+      token,
+      keyId: key.id,
+      service: key.service,
+      permissions,
+      expiresAt: Date.now() + ttlMs,
+    };
+    this.sessions.set(token, session);
+    return token;
+  }
+
+  getSession(token: string): SessionEntry | null {
+    const session = this.sessions.get(token);
+    if (!session) return null;
+    if (Date.now() > session.expiresAt) {
+      this.sessions.delete(token);
+      return null;
+    }
+    return session;
   }
 }
