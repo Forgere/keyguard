@@ -98,6 +98,10 @@ npx ts-node src/index.ts
 - **审计日志**: 详细记录 Key 访问日志，支持查询和分析。
 - **Web UI**: 提供一个简单的 Web 界面来管理 Key 和策略。
 
+## 用户使用手册
+
+更详细的安装、配置和使用指南，请参阅 [USER_MANUAL.md](USER_MANUAL.md)。
+
 ## 贡献
 
 欢迎提交 Issue 或 Pull Request 来改进 KeyGuard！
