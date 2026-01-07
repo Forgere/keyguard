@@ -1,0 +1,17 @@
+{
+  "name": "keyguard",
+  "description": "A security-focused plugin for managing service provider keys and sessions with granular permissions.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Manus Agent"
+  },
+  "mcpServers": {
+    "keyguard-server": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/index.js"],
+      "env": {
+        "KEYGUARD_STORAGE_PATH": "${CLAUDE_PLUGIN_ROOT}/storage.json"
+      }
+    }
+  }
+}
