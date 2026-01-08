@@ -12,7 +12,17 @@ export class IntentParser {
   private client: OpenAI;
 
   constructor() {
-    this.client = new OpenAI(); // 使用环境变量中的配置
+    const apiKey = process.env.KEYGUARD_LLM_TOKEN || process.env.OPENAI_API_KEY;
+    const baseURL = process.env.KEYGUARD_LLM_BASE_URL || process.env.OPENAI_BASE_URL;
+
+    if (!apiKey) {
+      console.warn("Warning: Neither KEYGUARD_LLM_TOKEN nor OPENAI_API_KEY is set. Intent parsing may fail.");
+    }
+
+    this.client = new OpenAI({
+      apiKey: apiKey || 'dummy-key',
+      baseURL: baseURL,
+    });
   }
 
   async parse(prompt: string): Promise<IntentResult> {

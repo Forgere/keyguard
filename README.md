@@ -40,12 +40,26 @@ pnpm install
 pnpm tsc
 ```
 
-### 3. 配置 OpenAI API Key
+### 3. 配置 LLM (意图解析)
 
-KeyGuard 的自然语言意图解析功能依赖于 OpenAI 的 API。请确保您的环境中设置了 `OPENAI_API_KEY` 环境变量。
+KeyGuard 的自然语言意图解析功能依赖于一个兼容 OpenAI 协议的 LLM 服务。您可以配置以下环境变量：
+
+-   `KEYGUARD_LLM_TOKEN`: 您的 LLM 服务 API Key。如果未设置，将尝试使用 `OPENAI_API_KEY`。
+-   `KEYGUARD_LLM_BASE_URL`: 您的 LLM 服务的基础 URL。如果未设置，将使用 OpenAI 的默认 API 地址。
+
+**示例配置 (使用自定义服务):**
+
+```bash
+export KEYGUARD_LLM_TOKEN="sk-YOUR_CUSTOM_LLM_KEY"
+export KEYGUARD_LLM_BASE_URL="https://api.your-custom-llm.com/v1"
+```
+
+**示例配置 (使用 OpenAI):**
 
 ```bash
 export OPENAI_API_KEY="sk-YOUR_OPENAI_API_KEY"
+# 或者
+export KEYGUARD_LLM_TOKEN="sk-YOUR_OPENAI_API_KEY"
 ```
 
 ### 4. 注册服务商主 Key (Master Key)
