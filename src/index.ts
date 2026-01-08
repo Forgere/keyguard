@@ -8,8 +8,12 @@ import { z } from "zod";
 import { Vault } from "./vault.js";
 import { PolicyEngine } from "./policy.js";
 import { ProxyHandler } from "./proxy.js";
+import { IntentParser } from "./intent.js";
+import { Provisioner } from "./provisioner.js";
+import { SkillGenerator } from "./skill_generator.js";
 
 const vault = new Vault();
+const intentParser = new IntentParser();
 
 const server = new Server(
   {
@@ -83,6 +87,17 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             data: { type: "object", description: "Request body data" }
           },
           required: ["session_token", "method", "path"]
+        }
+      },
+      {
+        name: "request_smart_access",
+        description: "Request access to a service using natural language. KeyGuard will provision a restricted key and generate a skill.md.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            prompt: { type: "string", description: "Natural language request (e.g., 'I need to read Cloudflare R2 bucket logs')" }
+          },
+          required: ["prompt"]
         }
       }
     ],
@@ -183,6 +198,53 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       });
 
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    }
+
+    if (name === "request_smart_access") {
+      const { prompt } = z.object({
+        prompt: z.string()
+      }).parse(args);
+
+      // 1. 解析意图
+      const intent = await intentParser.parse(prompt);
+      
+      // 2. 获取主 Key (假设已注册具有管理权限的 Key)
+      const masterKeys = vault.listKeys(intent.service).filter(k => k.permissions.includes('admin') || k.permissions.includes('manage_tokens'));
+      if (masterKeys.length === 0) {
+        return { content: [{ type: "text", text: `No master key with admin permissions found for ${intent.service}. Please register one first.` }], isError: true };
+      }
+
+      // 3. 动态 Provisioning
+      const provisioned = await Provisioner.provision(intent, masterKeys[0].key);
+      
+      // 4. 存入 Vault
+      const keyId = Math.random().toString(36).substring(7);
+      vault.addKey({
+        id: keyId,
+        service: provisioned.service,
+        key: provisioned.key,
+        permissions: provisioned.permissions,
+        description: `Smart provisioned for: ${intent.action}`
+      });
+
+      // 5. 创建 Session
+      const sessionToken = vault.createSession({ id: keyId, ...provisioned }, provisioned.permissions);
+
+      // 6. 生成 Skill.md
+      const skillContent = SkillGenerator.generate(provisioned, intent.action, intent.resource);
+      const skillPath = SkillGenerator.saveSkill(skillContent.replace('{{SESSION_TOKEN}}', sessionToken), `${provisioned.service}_${intent.action}`);
+
+      return { 
+        content: [{ 
+          type: "text", 
+          text: `Successfully provisioned access!\n\n` +
+                `Service: ${provisioned.service}\n` +
+                `Action: ${intent.action}\n` +
+                `Reasoning: ${intent.reasoning}\n` +
+                `Skill File: ${skillPath}\n\n` +
+                `The agent can now use the generated skill to perform tasks securely.`
+        }] 
+      };
     }
 
     throw new Error(`Unknown tool: ${name}`);
