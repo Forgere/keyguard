@@ -13,6 +13,9 @@ export class ProxyHandler {
     openai: 'https://api.openai.com/v1',
     anthropic: 'https://api.anthropic.com/v1',
     github: 'https://api.github.com',
+    cloudflare: 'https://api.cloudflare.com/client/v4',
+    vercel: 'https://api.vercel.com',
+    supabase: 'https://api.supabase.com/v1',
   };
 
   static async forward(service: string, key: string, options: ProxyRequestOptions) {
@@ -27,11 +30,14 @@ export class ProxyHandler {
     // 构造请求头，注入原始 Key
     const headers: Record<string, string> = { ...options.headers };
     
-    if (service.toLowerCase() === 'openai') {
+    if (service.toLowerCase() === 'openai' || 
+        service.toLowerCase() === 'cloudflare' || 
+        service.toLowerCase() === 'vercel' || 
+        service.toLowerCase() === 'supabase') {
       headers['Authorization'] = `Bearer ${key}`;
     } else if (service.toLowerCase() === 'anthropic') {
       headers['x-api-key'] = key;
-      headers['anthropic-version'] = '2023-06-01'; // 默认版本
+      headers['anthropic-version'] = '2023-06-01';
     } else if (service.toLowerCase() === 'github') {
       headers['Authorization'] = `token ${key}`;
       headers['Accept'] = 'application/vnd.github.v3+json';
