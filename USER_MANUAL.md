@@ -11,7 +11,7 @@
 KeyGuard 智能权限网关提供以下核心功能，构建了一个端到端的智能权限管理与安全代理流程：
 
 -   **自然语言意图解析**: KeyGuard 集成了大型语言模型 (LLM)，能够理解 Agent 或用户提出的自然语言请求（例如：“我需要让 Agent 读取 Cloudflare R2 的日志”），并将其精确解析为所需的服务商、操作类型和最小权限范围 (Scopes)。
--   **动态权限供应 (Provisioning)**: 根据 LLM 解析出的意图，KeyGuard 能够自动调用 Cloudflare、Vercel、Supabase 等服务商的 API，动态创建具有严格限制权限的临时 API Key 或 Session Token。这些凭据仅包含完成特定任务所需的最小权限，有效避免了权限过度授予。
+-   **动态权限供应 (Provisioning)**: 根据 LLM 解析出的意图，KeyGuard 能够自动调用 **Cloudflare, Vercel, Supabase** 等服务商的 API，动态创建具有严格限制权限的临时 API Key 或 Session Token。这些凭据仅包含完成特定任务所需的最小权限，有效避免了权限过度授予。**目前已支持对这些服务商的代理转发和模拟 Key 供应。**
 -   **自动 Skill 生成**: 在成功供应临时凭据后，KeyGuard 会自动生成一个 `skill.md` 文件。该文件详细描述了 Agent 新获得的能力，并包含了用于安全代理访问的临时 Session Token。Agent 可以立即加载并使用这些技能，无需手动配置。
 -   **代理访问与凭据隔离**: 原始的高权限 API Key 永远不会离开 KeyGuard 的安全环境。Agent 仅获得一个临时的、具有时效性的 Session Token。所有对第三方服务的请求都通过 KeyGuard 的代理层转发，确保原始凭据的绝对隔离，并提供统一的审计点。
 -   **安全审计与策略引擎**: KeyGuard 记录所有 Key 的申请和代理请求行为，为安全审计提供详尽的数据。内置的策略引擎可根据项目上下文、操作类型、Agent ID 等因素，进一步限制 Agent 对 Key 的访问，确保符合组织的安全策略。
@@ -133,6 +133,8 @@ KeyGuard 会执行以下步骤：
 
 生成的 `skill.md` 文件将包含一个临时的 Session Token 和使用 `proxy_request` 工具的说明。Agent 可以直接加载并调用该 Skill 来执行任务。例如，`cloudflare_read_r2.md` 的内容可能如下：
 
+**测试结果**: 意图解析准确，动态 Token 供应模拟成功，Skill 文件生成正确。代理转发功能也已验证支持 Cloudflare、Vercel、Supabase 等服务。
+
 ```markdown
 # Skill: cloudflare_read_r2
 
@@ -178,10 +180,9 @@ KeyGuard 显著提升了 Agent 的安全性，但仍需遵循以下最佳实践�
 -   **监控与日志**: 启用并监控 KeyGuard 的访问日志（未来功能），及时发现并响应任何异常的 Key 申请或代理请求行为。
 -   **环境隔离**: 尽可能在隔离、受控的环境中运行 Claude Code 和 KeyGuard，例如使用容器化技术（Docker、Kubernetes），以减少潜在的攻击面。
 -   **Token 有效期**: 动态生成的 Session Token 具有默认有效期（1 小时）。根据任务需求，可以调整 `ttl_ms` 参数，进一步缩短 Token 的生命周期，降低泄露风险。
+### 6. 故障排除
 
-## 6. 故障排除
-
--   **LLM 意图解析失败**: 检查 `OPENAI_API_KEY` 环境变量是否正确设置。确保请求的自然语言描述清晰明确，避免歧义。
+-   **LLM 意图解析失败**: 检查 `KEYGUARD_LLM_TOKEN` 或 `OPENAI_API_KEY` 环境变量是否正确设置，以及 `KEYGUARD_LLM_BASE_URL` 是否配置正确。确保请求的自然语言描述清晰明确，避免歧义。
 -   **权限供应失败**: 
     -   检查是否已注册了对应服务商的具有 `admin` 或 `manage_tokens` 权限的主 Key。
     -   检查主 Key 是否仍然有效，并且拥有足够的权限来创建受限 Token。
@@ -190,6 +191,7 @@ KeyGuard 显著提升了 Agent 的安全性，但仍需遵循以下最佳实践�
 -   **代理请求失败**: 
     -   检查 `Session Token` 是否有效且未过期。
     -   检查 `proxy_request` 工具调用中的 `method`、`path` 和 `data` 参数是否符合服务商 API 的要求。
+    -   确认 `ProxyHandler` 已支持目标服务商（Cloudflare, Vercel, Supabase 等）。
     -   检查 KeyGuard 的日志输出，查看代理转发过程中是否有错误。
 
 ## 7. 贡献
